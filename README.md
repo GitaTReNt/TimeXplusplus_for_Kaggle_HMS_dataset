@@ -1,6 +1,7 @@
 ## Copied from [[paper]](https://arxiv.org/abs/2405.09308) [[code]](https://github.com/zichuan-liu/TimeXplusplus) 
-      Changes：* Adapted to HMS Dataset
-               * More Baselines(TBD)
+      Changes：
+      * Adapted to HMS Dataset
+      * More Baselines(TBD)
 
 
 ## Citation  
