@@ -1,14 +1,7 @@
-# <p align=center> `TimeX++: Learning Time-Series Explanations with Information Bottleneck`</p>
+## Copied from [[paper]](https://arxiv.org/abs/2405.09308) [[code]](https://github.com/zichuan-liu/TimeXplusplus) 
+      Changes：* Adapted to HMS Dataset
+               * More Baselines(TBD)
 
-**Accepted ICML 2024** [[paper]](https://arxiv.org/abs/2405.09308) [[code]](https://github.com/zichuan-liu/TimeXplusplus) 
-
-This repository is the official PyTorch Implementation of TimeX++. Our experiments are based on [TimeX](https://github.com/mims-harvard/TimeX), and thanks to the all original authors! 
-
-Authors: Zichuan Liu, Tianchun Wang, Jimeng Shi, Xu Zheng, Zhuomin Chen, Lei Song, Wenqian Dong, Jayantha Obeysekera, Farhad Shirani, Dongsheng Luo
-
-## Introduction
-
-We posted an introductory presentation on this [[slides]](https://zichuan-liu.github.io/talk/ib_slides.pdf), so you can get a quick overview of our works.
 
 ## Citation  
 > 🌟 If you find this resource helpful, please consider starting this repository and cite our research:
