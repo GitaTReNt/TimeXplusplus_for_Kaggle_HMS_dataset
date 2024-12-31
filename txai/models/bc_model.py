@@ -220,8 +220,11 @@ class TimeXModel(nn.Module):
     
     def multivariate_mask(self, src, ste_mask):
         # First apply mask directly on input:
+        print("SRC:SHAPE:",src.shape)
         baseline = self._get_baseline(B = src.shape[1])
         ste_mask_rs = ste_mask.transpose(0,1)
+        print("baseline:SHAPE:",baseline.shape)
+        print("STE_MASK:SHAPE:",ste_mask_rs.shape)
         if len(ste_mask_rs.shape) == 2:
             ste_mask_rs = ste_mask_rs.unsqueeze(-1)
 
@@ -236,6 +239,7 @@ class TimeXModel(nn.Module):
     def _get_baseline(self, B):
         mu, std = self.masktoken_stats
         samp = torch.stack([torch.normal(mean = mu, std = std) for _ in range(B)], dim = 1)
+        print("SAMPE:SHAPE:",samp.shape)
         return samp
 
     def compute_loss(self, output_dict):

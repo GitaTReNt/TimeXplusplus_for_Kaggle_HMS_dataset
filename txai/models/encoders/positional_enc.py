@@ -15,21 +15,27 @@ class PositionalEncodingTF(nn.Module):
 
     def getPE(self, P_time):
         B = P_time.shape[1] # Number of batches
-
-        P_time = P_time.float()
+        #print("P_time:",P_time.shape)
+        #print("B:",B)
+        P_time = P_time.float().to(device)
 
         # timescales = self.max_len ** torch.linspace(0, 1, self._num_timescales).to(device) this was numpy
-        #print("ptime:",P_time.device)mwt
+
         timescales = self.max_len ** torch.linspace(0, 1, self._num_timescales).to(device)
-        #print("timescales:",timescales.device)
+
         #times = torch.Tensor(P_time.cpu()).unsqueeze(2)
         times = P_time.unsqueeze(2)
+        #print("times:",times.shape)
+        #print("timescales:",timescales.shape)
+        #print("times:",times)
+        #print("timescales[None, None, :]:",timescales[None, None, :])
         # print("times:",times.device)
         # print("timescales:",timescales.device)
         scaled_time = times / torch.Tensor(timescales[None, None, :])
         # Use a 32-D embedding to represent a single time point
-        pe = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], axis=-1)  # T x B x d_model
+        pe = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], axis=-1)  # T x B x d_model 1000 50 16
         #pe = pe.type(torch.FloatTensor)mwt
+        #print("peafter:",pe.shape)
 
 
         return pe

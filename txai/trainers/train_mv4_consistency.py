@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
+from tqdm import tqdm
 
 from txai.utils.predictors.loss_smoother_stats import exp_criterion_eval_smoothers
 from txai.utils.predictors.eval import eval_mv4
@@ -11,17 +12,18 @@ from txai.utils.cl import basic_negative_sampling
 from txai.utils.functional import js_divergence
 
 default_scheduler_args = {
-    'mode': 'max', 
-    'factor': 0.1, 
+    'mode': 'max',
+    'factor': 0.1,
     'patience': 5,
-    'threshold': 0.00001, 
+    'threshold': 0.00001,
     'threshold_mode': 'rel',
-    'cooldown': 0, 
-    'min_lr': 1e-8, 
-    'eps': 1e-08, 
+    'cooldown': 0,
+    'min_lr': 1e-8,
+    'eps': 1e-08,
     'verbose': True
 }
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def train_mv6_consistency(
         model,
         optimizer,
@@ -34,29 +36,29 @@ def train_mv6_consistency(
         beta_exp,
         beta_sim,
         train_tuple,
-        lam_label = 1.0,
-        clip_norm = True,
-        use_scheduler = False,
-        wait_for_scheduler = 20,
-        scheduler_args = default_scheduler_args,
-        selection_criterion = None,
-        save_path = None,
-        early_stopping = True,
-        label_matching = False,
-        embedding_matching = True,
-        opt_pred_mask = False, # If true, optimizes based on clf_criterion
-        opt_pred_mask_to_full_pred = False,
-        batch_forward_size = None,
-        simclr_training = False,
-        num_negatives_simclr = 64,
-        max_batch_size_simclr_negs = None,
-        bias_weight = 0.1
-    ):
+        lam_label=1.0,
+        clip_norm=True,
+        use_scheduler=False,
+        wait_for_scheduler=20,
+        scheduler_args=default_scheduler_args,
+        selection_criterion=None,
+        save_path=None,
+        early_stopping=True,
+        label_matching=False,
+        embedding_matching=True,
+        opt_pred_mask=False,  # If true, optimizes based on clf_criterion
+        opt_pred_mask_to_full_pred=False,
+        batch_forward_size=None,
+        simclr_training=False,
+        num_negatives_simclr=64,
+        max_batch_size_simclr_negs=None,
+        bias_weight=0.1
+):
     '''
     Args:
         selection_criterion: function w signature f(out, val_tuple)
 
-        if both label_matching and embedding_matching are true, then sim_criterion must be a list of length 2 
+        if both label_matching and embedding_matching are true, then sim_criterion must be a list of length 2
             with [embedding_sim, label_sim] functions
 
     '''
@@ -68,23 +70,29 @@ def train_mv6_consistency(
     if use_scheduler:
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, **scheduler_args)
 
-    dataX, dataT, dataY = train_tuple # Unpack training variables
+    dataX, dataT, dataY = train_tuple  # Unpack training variables
+    dataX, dataT, dataY = dataX.to(device), dataT.to(device), dataY.to(device)
+
 
     for epoch in range(num_epochs):
-        
+
         model.train()
         cum_sparse, cum_exp_loss, cum_clf_loss, cum_sim_loss = [], [], [], []
         label_sim_list, emb_sim_list = [], []
-        for X, times, y, ids in train_loader: # Need negative sampling here
-            # print(X.shape, times.shape, y.shape, ids.shape) #torch.Size([64, 200, 4]) torch.Size([64, 200]) torch.Size([64]) torch.Size([64])
+        loop = tqdm(train_loader, total=len(train_loader), desc=f"Epoch {epoch + 1}/{num_epochs}")
 
+        for X, times, y, ids in loop:  # Need negative sampling here
+            # print(X.shape, times.shape, y.shape, ids.shape) #torch.Size([64, 200, 4]) torch.Size([64, 200]) torch.Size([64]) torch.Size([64])
+            X, times, y = X.to(device), times.to(device), y.to(device)
             optimizer.zero_grad()
+            #print('X in train loop：', X.shape)
 
             # if detect_irreg:
             #     src_mask = (X < 1e-7)
             #     out_dict = model(X, times, captum_input = True)
-
-            out_dict = model(X, times, captum_input = True)
+            # print("x.device:",X.device)
+            # print("times.device:",times.device)
+            out_dict = model(X, times, captum_input=True)
             out = out_dict['pred']
             ste_mask = out_dict['ste_mask']
 
@@ -109,30 +117,36 @@ def train_mv6_consistency(
                     org_embeddings, conc_embeddings = out_dict['all_z']
 
                     if simclr_training:
-                        neg_inds = basic_negative_sampling(X, ids, dataX, num_negatives = num_negatives_simclr)
+                        neg_inds = basic_negative_sampling(X, ids, dataX, num_negatives=num_negatives_simclr)
                         n_inds_flat = neg_inds.flatten()
                         if max_batch_size_simclr_negs is None:
-                            neg_embeddings = model.encoder_main.embed(dataX[:,n_inds_flat,:], dataT[:,n_inds_flat], captum_input = False)
+                            neg_embeddings = model.encoder_main.embed(dataX[:, n_inds_flat, :], dataT[:, n_inds_flat],
+                                                                      captum_input=False)
                         else:
-                            _, neg_embeddings = batch_forwards_TransformerMVTS(model.encoder_main, dataX[:,n_inds_flat,:], dataT[:,n_inds_flat], batch_size = max_batch_size_simclr_negs)
+                            _, neg_embeddings = batch_forwards_TransformerMVTS(model.encoder_main,
+                                                                               dataX[:, n_inds_flat, :],
+                                                                               dataT[:, n_inds_flat],
+                                                                               batch_size=max_batch_size_simclr_negs)
 
                         # Reshape to split out number of negatives:
                         inds = torch.arange(X.shape[0])
-                        #print('is', inds.shape)
-                        #print('ne', neg_embeddings.shape)
+                        # print('is', inds.shape)
+                        # print('ne', neg_embeddings.shape)
                         inds_rep = torch.repeat_interleave(inds, num_negatives_simclr)
-                        #print(inds_rep)
-                        neg_embeddings = torch.stack([neg_embeddings[(inds_rep==j),:] for j in range(X.shape[0])], dim = 0).transpose(1,2)
+                        # print(inds_rep)
+                        neg_embeddings = torch.stack([neg_embeddings[(inds_rep == j), :] for j in range(X.shape[0])],
+                                                     dim=0).transpose(1, 2)
                         # print('neg_emb', neg_embeddings.shape)
                         # print('c', conc_embeddings.shape)
-                        #neg_embeddings = neg_embeddings.view(org_embeddings.shape[0], -1, num_negatives)
+                        # neg_embeddings = neg_embeddings.view(org_embeddings.shape[0], -1, num_negatives)
 
                         emb_sim_loss = sim_criterion[0](conc_embeddings, org_embeddings, neg_embeddings)
 
                     else:
-                        if model.ablation_parameters.ptype_assimilation and (not (model.ablation_parameters.side_assimilation)):
+                        if model.ablation_parameters.ptype_assimilation and (
+                        not (model.ablation_parameters.side_assimilation)):
                             conc_embeddings = out_dict['ptypes']
-                
+
                         emb_sim_loss = sim_criterion[0](org_embeddings, conc_embeddings)
 
                         if model.ablation_parameters.side_assimilation:
@@ -141,7 +155,7 @@ def train_mv6_consistency(
 
                     pred_org = out_dict['pred']
                     pred_mask = out_dict['pred_mask']
-                    #print('pre', pred_org)
+                    # print('pre', pred_org)
                     label_sim_loss = sim_criterion[1](pred_mask, pred_org)
 
                     # print('label', label_sim_loss)
@@ -169,16 +183,23 @@ def train_mv6_consistency(
             sim_loss = beta_sim * sim_loss
             exp_loss = beta_exp * model.compute_loss(out_dict)
             loss = clf_loss + exp_loss + sim_loss
+
+            loop.set_postfix({
+                'clf_loss': clf_loss.item(),
+                'exp_loss': exp_loss.item(),
+                'sim_loss': sim_loss.item(),
+                'loss': loss.item()
+            })
             # print('---------')
             # print('clf', clf_loss)
             # print('exp', exp_loss)
             # print('sim', sim_loss)
             # print('loss', loss)
 
-            #import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
 
             if clip_norm:
-                #print('Clip')
+                # print('Clip')
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
             # print('loss', loss.item())
@@ -204,10 +225,10 @@ def train_mv6_consistency(
 
         # Print all stats:
         # Convert to np:
-        sparse = np.array(cum_sparse) # Should be size (B, M)
+        sparse = np.array(cum_sparse)  # Should be size (B, M)
         sparse = sparse.mean()
         clf = sum(cum_clf_loss) / len(cum_clf_loss)
-        exp = np.array(cum_exp_loss) # Size (B, M, L)
+        exp = np.array(cum_exp_loss)  # Size (B, M, L)
         exp = exp.mean(axis=0).flatten()
         sim = np.mean(cum_sim_loss)
 
@@ -216,21 +237,22 @@ def train_mv6_consistency(
         else:
             sim_s = f'{sim:.4f}'
 
-        print(f'Epoch: {epoch}: Sparsity = {sparse:.4f} \t Exp Loss = {exp} \t Clf Loss = {clf:.4f} \t CL Loss = {sim_s}')
+        print(
+            f'Epoch: {epoch}: Sparsity = {sparse:.4f} \t Exp Loss = {exp} \t Clf Loss = {clf:.4f} \t CL Loss = {sim_s}')
 
         # Eval after every epoch
         # Call evaluation function:
         model.eval()
-        
+
         if batch_forward_size is None:
             f1, out = eval_mv4(val_tuple, model)
         else:
-            out = batch_forwards(model, val_tuple[0], val_tuple[1], batch_size = 64)
+            out = batch_forwards(model, val_tuple[0], val_tuple[1], batch_size=64)
             f1 = 0
-        #met = f1 # Copy for use below
+        # met = f1 # Copy for use below
         org_embeddings, conc_embeddings = out['all_z']
-        #met = 2.0 - sim_criterion(org_embeddings, conc_embeddings)
-        #met = (model.score_contrastive(org_embeddings, conc_embeddings)).mean()
+        # met = 2.0 - sim_criterion(org_embeddings, conc_embeddings)
+        # met = (model.score_contrastive(org_embeddings, conc_embeddings)).mean()
         # loss_dict = model.compute_loss(out)
         met = -1.0 * sim
 

@@ -127,11 +127,12 @@ def main(args):
 
         val, test = D['val'], D['test']
         gt_exps = D['gt_exps']
-
+        print("dshape:", D['train_loader'].X.shape)
         # Calc statistics for baseline:
         mu = D['train_loader'].X.mean(dim=1)
+        print("mu.shape:", mu.shape)
         std = D['train_loader'].X.std(unbiased = True, dim = 1)
-
+        print("std.shape:", std.shape)
         # Change transformer args:
         targs['trans_dim_feedforward'] = 16
         targs['trans_dropout'] = 0.1
@@ -193,7 +194,7 @@ def main(args):
         #     sim_criterion = sim_criterion,
         #     beta_exp = 2.0,
         #     beta_sim = 1.0,
-        #     val_tuple = val, 
+        #     val_tuple = val,
         #     num_epochs = 50,
         #     save_path = spath,
         #     train_tuple = (D['train_loader'].X, D['train_loader'].times, D['train_loader'].y),

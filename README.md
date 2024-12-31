@@ -49,7 +49,7 @@ pip install .
 cd ..
 python -m pip install -e .
 cd ./experiments/freqshape/
-python bc_model_ptype.py
+python bc_model_ptype1.py
 ```
 
 **Reproducibility**: For each dataset script, first modify the `base_path` to correspond to your directory.
@@ -59,7 +59,7 @@ python bc_model_ptype.py
 
 2. **Training TimeX++ to explain $f$**: Before training, please replace the path to the trained time series predictor that you wish to explain. Then, run:
 ```shell
-python bc_model_ptype.py
+python bc_model_ptype1.py
 ```
 Parameters can also be modified to train ablation models (please see the paper for more details). For baseline TimeX, you can be reproduced by modifying `is_timex=True` at the beginning of `bc_model_ptype.py`, otherwise, ours is `is_timex=False`. For evaluation and baseline, please refer to this [url](https://github.com/mims-harvard/TimeX/blob/main/reproducibility.md).
 

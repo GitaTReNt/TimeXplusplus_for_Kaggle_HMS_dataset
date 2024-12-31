@@ -1,10 +1,12 @@
 import torch
 import numpy as np
 from sklearn.metrics import f1_score, average_precision_score, roc_auc_score
+from tqdm import tqdm
+
 from txai.models.run_model_utils import batch_forwards_TransformerMVTS
 from txai.models.encoders.simple import CNN, LSTM
 from txai.utils.evaluation import ground_truth_xai_eval, ground_truth_IoU
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 @torch.no_grad()
 def eval_on_tuple(test_tuple, model, n_classes, mask = None):
     '''
@@ -84,6 +86,7 @@ def eval_mv4(test_tuple, model, masked = False, gt_exps=None):
     # Also evaluates models above v4
     model.eval()
     X, times, y = test_tuple
+    X, times, y = X.to(device), times.to(device), y.to(device)
     out = model(X, times, captum_input = False)
 
     if masked:
@@ -107,6 +110,79 @@ def eval_mv4(test_tuple, model, masked = False, gt_exps=None):
         return f1, out, results_dict
     else:
         return f1, out
+
+
+
+
+@torch.no_grad()
+def eval_mv4_large(val_loader, model, masked=False, gt_exps=None):
+    """
+    评估模型性能。
+
+    Args:
+        val_loader (DataLoader): 验证集的DataLoader。
+        model (torch.nn.Module): 要评估的模型。
+        masked (bool): 是否使用掩码预测。
+        gt_exps (Tensor, optional): 真实的解释（用于XAI评估）。
+
+    Returns:
+        f1 (float): F1分数。
+        out (dict): 模型输出。
+        results_dict (dict, optional): XAI评估结果。
+    """
+    model.eval()  # 设置为评估模式
+    all_preds = []
+    all_labels = []
+    all_outs = []  # 如果需要返回完整的模型输出
+
+    with torch.no_grad():  # 禁用梯度计算
+        for X, times, y in tqdm(val_loader, desc="Validating"):
+            X, times, y = X.to(device), times.to(device), y.to(device)
+            out = model(X, times, captum_input=False)
+
+            if masked:
+                pred = out['pred_mask']
+            else:
+                pred = out['pred']
+
+            preds = pred.argmax(dim=1).cpu().numpy()
+            labels = y.cpu().numpy()
+
+            all_preds.extend(preds)
+            all_labels.extend(labels)
+
+            if gt_exps is not None:
+                all_outs.append(out)
+
+    f1 = f1_score(all_labels, all_preds, average='macro')
+
+    if gt_exps is not None:
+        # 合并所有批次的输出
+        combined_out = {}
+        for key in all_outs[0].keys():
+            combined_out[key] = torch.cat([out[key] for out in all_outs], dim=0)
+
+        generated_exps = combined_out['mask_logits'].transpose(0, 1).clone().detach().cpu()
+        print(generated_exps.shape, gt_exps.shape)
+
+        results_dict = ground_truth_xai_eval(generated_exps, gt_exps)
+        results_dict["generated_exps"] = generated_exps
+        results_dict["gt_exps"] = gt_exps
+
+        return f1, combined_out, results_dict
+    else:
+        return f1, None
+
+
+
+
+
+
+
+
+
+
+
 
 @torch.no_grad()
 def eval_mv4_idexp(test_tuple, test_tuple_external, model, masked = False):

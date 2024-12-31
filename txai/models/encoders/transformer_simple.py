@@ -226,6 +226,9 @@ class TransformerMVTS(nn.Module):
         #     print('src before pe', src.isnan().sum())
         pe = self.pos_encoder(times) # Positional encoder
         pe = pe.to(src.device)
+        #print('pe', pe.shape)
+        #print('src', src.shape)
+
         x = torch.cat([pe, src], axis=2) # Concat position and src
 
         if pe.isnan().sum() > 0:
