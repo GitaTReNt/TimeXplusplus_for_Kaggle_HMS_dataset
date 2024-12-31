@@ -1,17 +1,14 @@
-## Copied from [[paper]](https://arxiv.org/abs/2405.09308) [[code]](https://github.com/zichuan-liu/TimeXplusplus) 
-      Changes：
-      * Adapted to HMS Dataset
-      * More Baselines(TBD)
-![12cdda7fe313c910153325732464bfe](https://github.com/user-attachments/assets/5ab2f4dc-a7fd-477a-b4fa-558ed46fd97b)
-![image](https://github.com/user-attachments/assets/acd678fe-2a15-47bc-9eb2-f91118ab9813)
-![image](https://github.com/user-attachments/assets/18a9e87d-6c52-48a2-a73d-3a68cf0c1ec8)
-![image](https://github.com/user-attachments/assets/0d2ddcd7-165e-436a-9e8d-afdcff49c625)
+# <p align=center> `TimeX++: Learning Time-Series Explanations with Information Bottleneck`</p>
 
+**Accepted ICML 2024** [[paper]](https://arxiv.org/abs/2405.09308) [[code]](https://github.com/zichuan-liu/TimeXplusplus) 
 
+This repository is the official PyTorch Implementation of TimeX++. Our experiments are based on [TimeX](https://github.com/mims-harvard/TimeX), and thanks to the all original authors! 
 
+Authors: Zichuan Liu, Tianchun Wang, Jimeng Shi, Xu Zheng, Zhuomin Chen, Lei Song, Wenqian Dong, Jayantha Obeysekera, Farhad Shirani, Dongsheng Luo
 
-      
+## Introduction
 
+We posted an introductory presentation on this [[slides]](https://zichuan-liu.github.io/talk/ib_slides.pdf), so you can get a quick overview of our works.
 
 ## Citation  
 > 🌟 If you find this resource helpful, please consider starting this repository and cite our research:
@@ -52,7 +49,7 @@ pip install .
 cd ..
 python -m pip install -e .
 cd ./experiments/freqshape/
-python bc_model_ptype1.py
+python bc_model_ptype.py
 ```
 
 **Reproducibility**: For each dataset script, first modify the `base_path` to correspond to your directory.
@@ -62,7 +59,7 @@ python bc_model_ptype1.py
 
 2. **Training TimeX++ to explain $f$**: Before training, please replace the path to the trained time series predictor that you wish to explain. Then, run:
 ```shell
-python bc_model_ptype1.py
+python bc_model_ptype.py
 ```
 Parameters can also be modified to train ablation models (please see the paper for more details). For baseline TimeX, you can be reproduced by modifying `is_timex=True` at the beginning of `bc_model_ptype.py`, otherwise, ours is `is_timex=False`. For evaluation and baseline, please refer to this [url](https://github.com/mims-harvard/TimeX/blob/main/reproducibility.md).
 
