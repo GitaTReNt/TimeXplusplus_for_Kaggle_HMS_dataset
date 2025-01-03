@@ -19,7 +19,7 @@ from txai.utils.data.datasets import DatasetwInds, DatasetwInds1
 from txai.utils.predictors.loss_cl import *
 from txai.utils.predictors.select_models import simloss_on_val_wboth
 
-is_timex = True
+is_timex = True #otherwise, ours is is_timex=False
 
 if is_timex:
     from txai.models.bc_model4 import TimeXModel, AblationParameters, transformer_default_args
@@ -125,7 +125,7 @@ def main(args):
 
     for i in range(1, 6):
 
-        datainfo = torch.load('../../datasets/hmstrain/split_hms_{}.pt'.format(i))
+        datainfo = torch.load('../../datasets/hmstrain2/fold_1/split_hms_{}.pt'.format(i))
         train_loader = datainfo['train_loader']
         val_X, val_t, val_y = datainfo["val"]  # (N_val, 1000, 8)/(N_val, 1000)/(N_val,)
         test_X, test_t, test_y = datainfo["test"]  # (N_test, 1000, 8)/(N_test, 1000)/(N_test,)
@@ -154,7 +154,7 @@ def main(args):
 #, all_ids
         # 创建 TensorDataset 包含 ids
         train_dataset = DatasetwInds1(all_X, all_t, all_y)
-        train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
         all_X = all_X.transpose(0, 1)  # 形状: (1000, N_train, 8)
         # all_t = all_t.transpose(0, 1)  # 形状: (1000, N_train)
@@ -168,12 +168,12 @@ def main(args):
         print("valshape",val_X.shape)
         print("val_t.shape:",val_t.shape)
         print("val_y.shape:",val_y.shape)
-        val_X_half, val_t_half, val_y_half = create_subset(val_X, val_t, val_y,fraction=0.1, seed=42)
-        test_X_half, test_t_half, test_y_half = create_subset(test_X, test_t, test_y, fraction=0.1, seed=42)
+        val_X, val_t, val_y = create_subset(val_X, val_t, val_y,fraction=0.02, seed=42)
+        test_X, test_t, test_y = create_subset(test_X, test_t, test_y, fraction=0.04, seed=42)
 
-        val = (val_X_half, val_t_half, val_y_half)
+        val = (val_X, val_t, val_y)
         print("val.shape:",val[0].shape)
-        test = (test_X_half, test_t_half, test_y_half)
+        test = (test_X, test_t, test_y)
         #test = (test_X, test_t, test_y)
         print("tb0.shape:",trainB[0].shape)
         mu = trainB[0].mean(dim=1)
@@ -245,13 +245,14 @@ def main(args):
             beta_exp=2.0,
             beta_sim=1.0,
             val_tuple=val,
-            num_epochs=2,
+            num_epochs=1,
             save_path=spath,
             train_tuple=trainB,
             early_stopping=True,
             selection_criterion=selection_criterion,
             label_matching=True,
             embedding_matching=True,
+            batch_forward_size=None,#32
             use_scheduler=True
         )
 

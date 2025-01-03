@@ -4,10 +4,15 @@ from pathlib import Path
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import trange
+from txai.utils.data.generate_spilts import SnippetDataset
 
+from torch.utils.data import DataLoader
+from tqdm import trange, tqdm
+from txai.utils.data.processhms import process_HMS
+from experiments.HMS.bc_model_ptype import create_subset
 from txai.models.encoders.transformer_simple import TransformerMVTS
 from txai.models.encoders.simple import CNN, LSTM
+from txai.utils.data.datasets import DatasetwInds1
 from txai.utils.experimental import get_explainer
 from txai.vis.vis_saliency import vis_one_saliency
 from txai.utils.data import process_Synth
@@ -133,6 +138,20 @@ def get_model(args, X):
                 stronger_clf_head = False,
             )
 
+
+        elif args.dataset == 'HMS':
+            model = TransformerMVTS(
+                d_inp = X.shape[-1],
+                max_len = X.shape[0],
+                n_classes = 6,
+                nlayers = 1,
+                trans_dim_feedforward = 16,
+                trans_dropout = 0.1,
+                d_pe = 16,
+                norm_embedding = False,
+            )
+
+
         elif args.dataset == 'epilepsy':
             model = TransformerMVTS(
                 d_inp = X.shape[-1],
@@ -202,8 +221,8 @@ def main(args):
     elif Dname == 'boiler':
         D = process_Boiler(split_no = args.split_no, device = device, base_path = Path(args.data_path) / 'Boiler', 
             normalize = True)
-    # elif Dname == 'anomaly':
-    #     D = process_Yahoo(split_no = args.split_no, device = device, balance = False)
+    elif Dname == 'hms':
+        train_loader, val, test = process_HMS(split_no=args.split_no, device=device, base_path='/root/autodl-tmp/time/datasets/hmstrain2/')
     elif Dname == 'epilepsy':
         trainEpi, val, test = process_Epilepsy(split_no = args.split_no, device = device, base_path = '/n/data1/hms/dbmi/zitnik/lab/users/owq978/TimeSeriesCBM/datasets/Epilepsy/')
     elif Dname == 'pam':
@@ -219,6 +238,9 @@ def main(args):
     elif Dname in {'epilepsy', 'pam'}:
         val = (val.X, val.time, val.y)
         test = (test.X, test.time, test.y)
+    elif Dname in {'hms'}:
+        val = val
+        test = test
     else:
         test = D['test']
 
@@ -261,7 +283,7 @@ def main(args):
         #exit()
     else:
         X, times, y = test
-        if Dname not in {'epilepsy', 'pam'}: 
+        if Dname not in {'epilepsy', 'pam', 'hms'}:
             gt_exps = D['gt_exps']
     T, B, d = X.shape
     print(args.exp_method, "args.exp_method", args.model_path)
@@ -292,7 +314,8 @@ def main(args):
             else:
                 batch_X = X[:,iters[i]:iters[i+1],:]
                 batch_times = times[:,iters[i]:iters[i+1]]
-
+                batch_X, batch_times = batch_X.to(device), batch_times.to(device)
+            batch_X, batch_times = batch_X.to(device), batch_times.to(device)
             with torch.no_grad():
                 if args.savepath is None:
                     out = model.get_saliency_explanation(batch_X, batch_times, captum_input = False)
@@ -312,12 +335,12 @@ def main(args):
                         if batch_X.shape[-1] == 1:
                             generated_exps[:,iters[i]:,:] = out['mask_in']
                         else:
-                            generated_exps[:,iters[i]:,:] = out['mask_in'].transpose(0,1)
+                            generated_exps[:,iters[i]:,:] = out['mask_in']#.transpose(0,1)
                     else:
                         if batch_X.shape[-1] == 1:
                             generated_exps[:,iters[i]:iters[i+1],:] = out['mask_in']
                         else:
-                            generated_exps[:,iters[i]:iters[i+1],:] = out['mask_in'].transpose(0,1)
+                            generated_exps[:,iters[i]:iters[i+1],:] = out['mask_in']#.transpose(0,1)
                 else:
                     if i == (len(iters) - 1):
                         # if batch_X.shape[-1] == 1:
@@ -440,7 +463,7 @@ if __name__ == '__main__':
         results = {}
         for split in range(1, 6):
             # replace model path with correct split
-            args.model_path = re.sub("split=\d", f"split={split}", args.model_path)
+            args.model_path = re.sub("split=\\d", f"split={split}", args.model_path)
             print("model path:", args.model_path)
             args.split_no = split
             split_results = main(args)

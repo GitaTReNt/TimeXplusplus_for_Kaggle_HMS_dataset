@@ -17,13 +17,18 @@ from txai.utils.data.generate_spilts import SnippetDataset
 import numpy as np
 
 # 定义选定的 EEG 通道，排除 EKG
-FEATS = ['Fp1', 'T3', 'C3', 'O1', 'Fp2', 'C4', 'T4', 'O2']
+ALL_FEATS = ['Fp1', 'F3', 'C3', 'P3', 'F7', 'T3', 'T5',
+            'O1', 'Fz', 'Cz', 'Pz', 'Fp2', 'F4', 'C4',
+            'P4', 'F8', 'T4', 'T6', 'O2', 'EKG']
+
+# 2. 排除EKG通道，保留19个通道
+FEATS = [feat for feat in ALL_FEATS if feat != 'EKG']
 FEAT2IDX = {x: y for y, x in zip(FEATS, range(len(FEATS)))}
 
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
-    data_path = "../../../datasets/hmstrain"  # 这里放了 split_hms_{i}.pt
+    data_path = "../../../datasets/hmstrain2/fold_1"  # 这里放了 split_hms_{i}.pt
 
     n_folds = 5
     for i in range(1, n_folds + 1):
@@ -80,22 +85,22 @@ def main():
             norm_embedding=False
         ).to(device)
 
-        optimizer = torch.optim.AdamW(model.parameters(), lr=2e-3, weight_decay=0.01)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.01)
 
         save_path = f"models/hms_transformer_fold={i}.pt"
-        model, best_loss, best_auc = train(
-            model=model,
-            train_loader=train_loader,
-            val_tuple=(val_X, val_t, val_y),
-            n_classes=6,
-            num_epochs=150,  # 可以增加 epoch 数量以提升性能
-            save_path=save_path,
-            optimizer=optimizer,
-            show_sizes=False,
-            validate_by_step=16,
-            use_scheduler=False
-        )
-
+        # model, best_loss, best_auc = train(
+        #     model=model,
+        #     train_loader=train_loader,
+        #     val_tuple=(val_X, val_t, val_y),
+        #     n_classes=6,
+        #     num_epochs=500,  # 可以增加 epoch 数量以提升性能
+        #     save_path=save_path,
+        #     optimizer=optimizer,
+        #     show_sizes=False,
+        #     validate_by_step=16,
+        #     use_scheduler=False
+        # )
+        model.load_state_dict(torch.load(save_path))
         # 测试
         test_f1 = eval_mvts_transformer((test_X, test_t, test_y), model, batch_size=16)
         print(f"[Fold {i}] Test F1 = {test_f1:.4f}")

@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
-
+from tqdm import tqdm
 from txai.utils.predictors.loss_smoother_stats import exp_criterion_eval_smoothers
 from txai.utils.predictors.eval import eval_mv4
 from txai.utils.cl import in_batch_triplet_sampling
@@ -9,7 +9,7 @@ from txai.models.run_model_utils import batch_forwards, batch_forwards_Transform
 from txai.utils.cl import basic_negative_sampling
 
 from txai.utils.functional import js_divergence
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 default_scheduler_args = {
     'mode': 'max', 
     'factor': 0.1, 
@@ -81,7 +81,11 @@ def train_mv6_consistency(
         model.train()
         cum_sparse, cum_exp_loss, cum_clf_loss, cum_sim_loss = [], [], [], []
         label_sim_list, emb_sim_list = [], []
-        for X, times, y, ids in train_loader: # Need negative sampling here
+        batch_iterator = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs} Batches", leave=False, unit="batch")
+
+        for X, times, y, ids in batch_iterator: # Need negative sampling here
+
+            X, times, y = X.to(device), times.to(device), y.to(device)
 
 
             optimizer.zero_grad()
@@ -136,6 +140,13 @@ def train_mv6_consistency(
             cum_exp_loss.append([exp_loss.detach().clone().item()])
             cum_sim_loss.append(sim_loss.detach().item())
 
+            batch_iterator.set_postfix({
+                'Clf Loss': f"{clf_loss.item():.4f}",
+                'Exp Loss': f"{exp_loss.item():.4f}",
+                'Sim Loss': f"{sim_loss.item():.4f}",
+                'Total Loss': f"{loss.item():.4f}"
+            })
+
         # Print all stats:
         # Convert to np:
         sparse = np.array(cum_sparse) # Should be size (B, M)
@@ -156,7 +167,7 @@ def train_mv6_consistency(
         if batch_forward_size is None:
             f1, out = eval_mv4(val_tuple, model)
         else:
-            out = batch_forwards(model, val_tuple[0], val_tuple[1], batch_size = 64)
+            out = batch_forwards(model, val_tuple[0], val_tuple[1], batch_size = 32, org_v = False, ours=True)
             f1 = 0
 
 

@@ -82,6 +82,7 @@ def train_mv6_consistency(
         loop = tqdm(train_loader, total=len(train_loader), desc=f"Epoch {epoch + 1}/{num_epochs}")
 
         for X, times, y, ids in loop:  # Need negative sampling here
+
             # print(X.shape, times.shape, y.shape, ids.shape) #torch.Size([64, 200, 4]) torch.Size([64, 200]) torch.Size([64]) torch.Size([64])
             X, times, y = X.to(device), times.to(device), y.to(device)
             optimizer.zero_grad()
@@ -247,10 +248,10 @@ def train_mv6_consistency(
         if batch_forward_size is None:
             f1, out = eval_mv4(val_tuple, model)
         else:
-            out = batch_forwards(model, val_tuple[0], val_tuple[1], batch_size=64)
+            out = batch_forwards(model, val_tuple[0], val_tuple[1], batch_size=32, org_v = False, ours=True)
             f1 = 0
         # met = f1 # Copy for use below
-        org_embeddings, conc_embeddings = out['all_z']
+        #org_embeddings, conc_embeddings = out['all_z']
         # met = 2.0 - sim_criterion(org_embeddings, conc_embeddings)
         # met = (model.score_contrastive(org_embeddings, conc_embeddings)).mean()
         # loss_dict = model.compute_loss(out)

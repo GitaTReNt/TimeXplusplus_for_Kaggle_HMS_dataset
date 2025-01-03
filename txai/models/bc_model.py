@@ -11,7 +11,7 @@ from txai.utils.predictors.loss import GSATLoss, ConnectLoss
 from txai.utils.predictors.loss_smoother_stats import *
 from txai.utils.functional import js_divergence, stratified_sample
 from txai.models.encoders.simple import CNN, LSTM
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 transformer_default_args = {
     'enc_dropout': None,
     'nhead': 1,
@@ -146,7 +146,7 @@ class TimeXModel(nn.Module):
 
     def forward(self, src, times, captum_input = False):
         # TODO: return early from function when in eval
-        
+        src,times =src.to(device),times.to(device)
         if captum_input:
             src = src.transpose(0, 1)
             times = times.transpose(0, 1)
@@ -220,16 +220,19 @@ class TimeXModel(nn.Module):
     
     def multivariate_mask(self, src, ste_mask):
         # First apply mask directly on input:
-        print("SRC:SHAPE:",src.shape)
+        # print("SRC:SHAPE:",src.shape)
         baseline = self._get_baseline(B = src.shape[1])
         ste_mask_rs = ste_mask.transpose(0,1)
-        print("baseline:SHAPE:",baseline.shape)
-        print("STE_MASK:SHAPE:",ste_mask_rs.shape)
+        # print("baseline:SHAPE:",baseline.shape)
+        # print("STE_MASK:SHAPE:",ste_mask_rs.shape)
         if len(ste_mask_rs.shape) == 2:
             ste_mask_rs = ste_mask_rs.unsqueeze(-1)
 
-
+        # print("baselinedevice:", baseline.device)
+        # print("srcdevice:", src.device)
+        # print("ste_mask_rsdevice:", ste_mask_rs.device)
         src_masked_ref = src * ste_mask_rs + (1 - ste_mask_rs) * baseline#self.baseline_net(src)#baseline
+
         
         # src_masked = self.mask_connection_src(torch.stack([src * ste_mask_rs, (1 - ste_mask_rs) * baseline], dim=-1)).squeeze(-1)
         src_masked = self.mask_connection_src(torch.stack([src, ste_mask_rs], dim=-1)).squeeze(-1)
@@ -239,7 +242,8 @@ class TimeXModel(nn.Module):
     def _get_baseline(self, B):
         mu, std = self.masktoken_stats
         samp = torch.stack([torch.normal(mean = mu, std = std) for _ in range(B)], dim = 1)
-        print("SAMPE:SHAPE:",samp.shape)
+        samp = samp.to(device)
+        # print("SAMPE:SHAPE:",samp.shape)
         return samp
 
     def compute_loss(self, output_dict):

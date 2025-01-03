@@ -1,5 +1,5 @@
 import torch
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def concat_all_dicts(dlist, org_v = False, ours = False):
     # Marries together all dictionaries
     # Will change based on output from model
@@ -14,6 +14,17 @@ def concat_all_dicts(dlist, org_v = False, ours = False):
                 mother_dict[k].append(torch.stack(d[k], dim = -1))
             else:   
                 mother_dict[k].append(d[k])
+
+                # 调试输出 'all_z' 的结构
+            # if 'all_z' in d:
+            #     print(f"Batch : type(d['all_z']) = {type(d['all_z'])}")
+            #     if isinstance(d['all_z'], tuple):
+            #         print(f"Batch : len(d['all_z']) = {len(d['all_z'])}")
+            #         for j, z in enumerate(d['all_z']):
+            #             print(
+            #                 f"Batch , all_z[{j}]: type = {type(z)}, shape = {z.shape if isinstance(z, torch.Tensor) else 'N/A'}")
+            #     else:
+            #         print(f"Batch : 'all_z' 不是一个元组, type = {type(d['all_z'])}")
 
     mother_dict['pred'] = torch.cat(mother_dict['pred'], dim = 0).cpu()
     mother_dict['pred_mask'] = torch.cat(mother_dict['pred_mask'], dim = 0).cpu()
@@ -42,6 +53,8 @@ def batch_forwards(model, X, times, batch_size = 64, org_v = False, ours=False):
     '''
 
     iters = torch.arange(0, X.shape[1], step = batch_size)
+    #print("xshapeinbatchforward:",X.shape)#(T,N,C)[2000, 10680, 19]
+    #print("timeshapeinbatchforward:",times.shape)#(T,N)[2000, 10680]
     out_list = []
 
     for i in range(len(iters)):
@@ -53,11 +66,51 @@ def batch_forwards(model, X, times, batch_size = 64, org_v = False, ours=False):
             batch_times = times[:,iters[i]:iters[i+1]]
 
         with torch.no_grad():
+            batch_X, batch_times = batch_X.to(device), batch_times.to(device)
             out = model(batch_X, batch_times, captum_input = False)
 
         out_list.append(out)
 
     out_full = concat_all_dicts(out_list, org_v = org_v, ours=ours)
+
+
+    for key, value in out_full.items():
+        if isinstance(value, torch.Tensor):
+            print(f"Key: {key}, Type: Tensor, Shape: {value.shape}")
+        elif isinstance(value, (list, tuple)):
+            print(f"Key: {key}, Type: {type(value)}, Length: {len(value)}")
+        else:
+            print(f"Key: {key}, Type: {type(value)}")
+
+    # if 'all_z' in out_full:
+    #     org_z, con_z = out_full['all_z']
+    #     print(f"all_z exists. org_z shape: {org_z.shape}, con_z shape: {con_z.shape}")
+    # else:
+    #     print("Warning: 'all_z' 不存在于 out_full 中。")
+
+    # print("outfullshapeZZZ:",out_full['all_z'].shape)
+    if 'all_z' in out_full:
+        if isinstance(out_full['all_z'], tuple) and len(out_full['all_z']) == 2:
+            org_z, con_z = out_full['all_z']
+        else:
+            raise ValueError("'all_z' should be a tuple with exactly two elements.")
+    else:
+        print("Warning: 'all_z' does not exist in out_full.")
+
+    '''
+    Key: pred, Type: Tensor, Shape: torch.Size([10680, 6])
+    Key: pred_mask, Type: Tensor, Shape: torch.Size([10680, 6])
+    Key: mask_logits, Type: Tensor, Shape: torch.Size([10680, 2000, 19])
+    Key: ste_mask, Type: Tensor, Shape: torch.Size([10680, 2000, 19])
+    Key: smooth_src, Type: Tensor, Shape: torch.Size([2000, 10680, 19])
+    Key: all_z, Type: <class 'list'>, Length: 334
+    Key: reference_z, Type: <class 'list'>, Length: 334
+    Key: z_mask_list, Type: <class 'list'>, Length: 334
+    Key: ptype_inds, Type: <class 'list'>, Length: 334
+    Key: ptypes, Type: <class 'list'>, Length: 334
+    '''
+
+
 
     return out_full
 
